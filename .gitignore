@@ -1,0 +1,18 @@
+# Binários
+main
+weather-cache
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Arquivos de Sistema (Mac/Windows)
+.DS_Store
+Thumbs.db
+
+# Dependências (se houver vendor)
+vendor/
+
+# Arquivos de ambiente (Segurança)
+.env

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cache-Aside Demo</title>
+    <style>
+        :root { --primary: #007BFF; --success: #28a745; --danger: #dc3545; --bg: #f4f4f9; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg); color: #333; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        
+        .container { max-width: 800px; width: 100%; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        
+        h1 { text-align: center; margin-bottom: 30px; }
+        .badge { background: #eee; padding: 5px 10px; border-radius: 20px; font-size: 0.8rem; vertical-align: middle; }
+
+        .weather-form { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; }
+        input { padding: 12px; border: 1px solid #ddd; border-radius: 8px; width: 100px; }
+        button { padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: transform 0.1s; }
+        button:active { transform: scale(0.98); }
+        .btn-primary { background-color: var(--primary); color: white; }
+        
+        .result-card { background: #e9ecef; padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 40px; border-left: 5px solid #ccc; }
+        .result-card.hit { border-left-color: var(--success); background: #d4edda; color: #155724; }
+        .result-card.miss { border-left-color: var(--danger); background: #f8d7da; color: #721c24; }
+
+        .benchmark-section { border-top: 2px dashed #ddd; padding-top: 20px; margin-top: 20px; }
+        .bench-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+        
+        .bench-card { background: #fafafa; padding: 20px; border-radius: 10px; border: 1px solid #eee; text-align: center; }
+        .bench-title { font-weight: bold; font-size: 1.2rem; margin-bottom: 10px; display: block; }
+        
+        .stat-box { font-size: 2rem; font-weight: bold; margin: 15px 0; }
+        .stat-label { font-size: 0.9rem; color: #666; }
+
+        .progress-container { height: 10px; background: #ddd; border-radius: 5px; overflow: hidden; margin-top: 10px; }
+        .progress-bar { height: 100%; width: 0%; transition: width 0.3s; }
+        
+        .btn-danger { background-color: var(--danger); color: white; }
+        .btn-success { background-color: var(--success); color: white; }
+
+        .blink { animation: blinker 1s linear infinite; }
+        @keyframes blinker { 50% { opacity: 0; } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>☁️ Weather App <span class="badge">Go + Redis</span></h1>
+
+    <div class="weather-form">
+        <form action="/weather" method="get" style="display:flex; gap:10px;">
+            <input type="text" name="lat" placeholder="Lat" value="52.52">
+            <input type="text" name="lon" placeholder="Lon" value="13.41">
+            <input type="hidden" name="mock" value="{{if .Mock}}true{{else}}false{{end}}"> 
+            <button type="submit" class="btn-primary">🔍 Consultar (Manual)</button>
+        </form>
+    </div>
+
+    {{if .Latitude}}
+    <div class="result-card {{if eq .Source "Redis Cache ⚡"}}hit{{else}}miss{{end}}">
+        <h2>{{.Current.Temp}}°C </h2>
+        <p>Fonte: <strong>{{.Source}}</strong></p>
+        <small>Lat: {{.Latitude}} | Lon: {{.Longitude}}</small>
+    </div>
+    {{end}}
+
+    <div class="benchmark-section">
+        <h2 style="text-align: center;">⚡ Battle Mode: Cache vs No-Cache</h2>
+        <p style="text-align: center; color: #666;">Simula 20 requisições seguidas direto do seu navegador.</p>
+        
+        <div class="bench-grid">
+            <div class="bench-card">
+                <span class="bench-title" style="color: var(--danger)">🐢 Sem Cache</span>
+                <div class="stat-box" id="slow-time">0 ms</div>
+                <div class="stat-label">Latência Média</div>
+                <button onclick="runBenchmark('slow')" class="btn-danger">🔥 Testar Lento</button>
+                <div class="progress-container">
+                    <div id="bar-slow" class="progress-bar" style="background: var(--danger);"></div>
+                </div>
+            </div>
+
+            <div class="bench-card">
+                <span class="bench-title" style="color: var(--success)">🚀 Com Cache</span>
+                <div class="stat-box" id="fast-time">0 ms</div>
+                <div class="stat-label">Latência Média</div>
+                <button onclick="runBenchmark('fast')" class="btn-success">⚡ Testar Rápido</button>
+                <div class="progress-container">
+                    <div id="bar-fast" class="progress-bar" style="background: var(--success);"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const ITERATIONS = 20;
+    const API_URL = "/weather"; 
+
+    async function runBenchmark(mode) {
+        const display = document.getElementById(mode + '-time');
+        const bar = document.getElementById('bar-' + mode);
+        const btn = document.querySelector(`button[onclick="runBenchmark('${mode}')"]`);
+        
+        display.innerText = "Rodando...";
+        display.classList.add("blink");
+        bar.style.width = "0%";
+        btn.disabled = true;
+
+        let totalTime = 0;
+
+        for (let i = 0; i < ITERATIONS; i++) {
+            const start = performance.now();
+            
+            const lat = mode === 'slow' ? Math.random() * 90 : '52.52';
+            const lon = mode === 'slow' ? Math.random() * 180 : '13.41';
+            
+            try {
+                await fetch(`${API_URL}?lat=${lat}&lon=${lon}&mock=true`, { 
+                    headers: {'Accept': 'application/json'} 
+                });
+            } catch (e) {
+                console.error(e);
+            }
+
+            const duration = performance.now() - start;
+            totalTime += duration;
+
+            bar.style.width = ((i + 1) / ITERATIONS * 100) + "%";
+        }
+
+        const avgTime = (totalTime / ITERATIONS).toFixed(0);
+        display.innerText = avgTime + " ms";
+        display.classList.remove("blink");
+        btn.disabled = false;
+    }
+</script>
+
+</body>
+</html>
