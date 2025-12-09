@@ -1,6 +1,6 @@
 ⚡ Go + Redis: Cache-Aside Pattern Demo
 
-📺 Assista ao vídeo tutorial completo: [COLOQUE O LINK DO SEU VÍDEO AQUI]
+📺 Assista ao vídeo tutorial completo: https://youtu.be/P48muXnDxvE
 
 Este projeto é uma demonstração prática de engenharia de performance. Ele mostra como escalar uma API que sofre com dependências lentas (600ms+) para uma resposta instantânea (<50ms) usando o padrão Cache-Aside com Go e Redis.
 

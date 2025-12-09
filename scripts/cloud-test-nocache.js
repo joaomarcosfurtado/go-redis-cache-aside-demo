@@ -2,7 +2,7 @@ import http from 'k6/http';
 import { check } from 'k6';
 
 export const options = {
-  vus: 150, // Mesma carga (50 usuários)
+  vus: 150, // Mesma carga (150 usuários)
   duration: '15s',
   thresholds: {
     http_req_duration: ['p(95)<750'], 
